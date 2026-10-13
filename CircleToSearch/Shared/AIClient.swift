@@ -232,9 +232,41 @@ enum AIClient {
     private static func errorMessage(from data: Data, provider: AIProvider, status: Int) -> String {
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         let message = (json?["error"] as? [String: Any])?["message"] as? String ?? json?["error"] as? String
-        if status == 401 || status == 403 {
-            return "\(provider.name) didn't accept the API key. Check it in Settings." + (message.map { "\n\($0)" } ?? "")
+        let keyProblem = status == 401 || status == 403 || (message ?? "").localizedCaseInsensitiveContains("api key")
+        if keyProblem {
+            return "\(provider.name) didn't accept the API key. Open Settings and tap Test key." + (message.map { "\n\($0)" } ?? "")
         }
         return message ?? "\(provider.name) request failed (\(status))."
+    }
+
+    // MARK: Key check
+
+    /// Makes a free request (listing models) to check that the provider accepts the key.
+    static func testKey(provider: AIProvider, key: String) async -> (ok: Bool, message: String) {
+        var request: URLRequest
+        switch provider {
+        case .claude:
+            request = URLRequest(url: URL(string: "https://api.anthropic.com/v1/models")!)
+            request.setValue(key, forHTTPHeaderField: "x-api-key")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        case .chatgpt:
+            request = URLRequest(url: URL(string: "https://api.openai.com/v1/models")!)
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "authorization")
+        case .grok:
+            request = URLRequest(url: URL(string: "https://api.x.ai/v1/models")!)
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "authorization")
+        case .gemini:
+            request = URLRequest(url: URL(string: "https://generativelanguage.googleapis.com/v1beta/models")!)
+            request.setValue(key, forHTTPHeaderField: "x-goog-api-key")
+        }
+        request.timeoutInterval = 30
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if status == 200 { return (true, "\(provider.name) accepted this key.") }
+            return (false, errorMessage(from: data, provider: provider, status: status))
+        } catch {
+            return (false, error.localizedDescription)
+        }
     }
 }

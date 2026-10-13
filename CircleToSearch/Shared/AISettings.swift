@@ -74,14 +74,26 @@ final class AISettings: ObservableObject {
     }
 
     func key(for p: AIProvider) -> String {
-        let saved = defaults.string(forKey: "key.\(p.rawValue)") ?? ""
+        let saved = Self.cleanKey(defaults.string(forKey: "key.\(p.rawValue)") ?? "")
         if saved.isEmpty, p == .claude, Config.aiEnabled { return Config.apiKey }   // key baked in at build time
         return saved
     }
 
     func setKey(_ key: String, for p: AIProvider) {
         objectWillChange.send()
-        defaults.set(key.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "key.\(p.rawValue)")
+        defaults.set(Self.cleanKey(key), forKey: "key.\(p.rawValue)")
+    }
+
+    /// API keys are plain ASCII with no spaces. Pasting from notes, email or a web page can bring along
+    /// spaces, line breaks, zero-width characters or smart quotes that make the provider reject the key.
+    static func cleanKey(_ key: String) -> String {
+        String(String.UnicodeScalarView(key.unicodeScalars.filter { (0x21...0x7E).contains($0.value) && $0 != "\"" && $0 != "'" }))
+    }
+
+    /// e.g. "xai-AbC…9xYz · 84 characters", so you can compare it with the key in your provider's console.
+    static func preview(_ key: String) -> String {
+        guard key.count > 10 else { return key.isEmpty ? "No key saved" : "\(key.count) characters" }
+        return "\(key.prefix(7))…\(key.suffix(4)) · \(key.count) characters"
     }
 
     func model(for p: AIProvider) -> String {
@@ -136,11 +148,7 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    SecureField("Paste your \(settings.provider.company) API key",
-                                text: Binding(get: { settings.key(for: settings.provider) },
-                                              set: { settings.setKey($0, for: settings.provider) }))
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                    KeyEditor(provider: settings.provider)
                     Button("Get a \(settings.provider.name) API key") {
                         browserURL = IdentifiedURL(url: settings.provider.keyPage)
                     }
@@ -171,5 +179,64 @@ struct SettingsView: View {
             }
             .sheet(item: $browserURL) { WebSheet(url: $0.url) }
         }
+    }
+}
+
+// MARK: - Key field
+
+/// Paste, show/hide, preview and test the key for one provider.
+struct KeyEditor: View {
+    let provider: AIProvider
+    @ObservedObject private var settings = AISettings.shared
+    @State private var reveal = false
+    @State private var testing = false
+    @State private var testResult: (ok: Bool, message: String)?
+
+    var body: some View {
+        let key = Binding(get: { settings.key(for: provider) },
+                          set: { settings.setKey($0, for: provider); testResult = nil })
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Group {
+                    if reveal {
+                        TextField("Paste your \(provider.company) API key", text: key)
+                    } else {
+                        SecureField("Paste your \(provider.company) API key", text: key)
+                    }
+                }
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .textContentType(.none)
+                Button { reveal.toggle() } label: { Image(systemName: reveal ? "eye.slash" : "eye") }
+                    .buttonStyle(.borderless)
+            }
+            Text(AISettings.preview(settings.key(for: provider)))
+                .font(.caption.monospaced())
+                .foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                Button("Paste") {
+                    if let text = UIPasteboard.general.string { key.wrappedValue = text }
+                }
+                Button("Clear", role: .destructive) { key.wrappedValue = "" }
+                Spacer()
+                Button {
+                    Task {
+                        testing = true
+                        testResult = await AIClient.testKey(provider: provider, key: settings.key(for: provider))
+                        testing = false
+                    }
+                } label: {
+                    if testing { ProgressView() } else { Text("Test key") }
+                }
+                .disabled(settings.key(for: provider).isEmpty || testing)
+            }
+            .buttonStyle(.bordered)
+            if let testResult {
+                Label(testResult.message, systemImage: testResult.ok ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                    .font(.footnote)
+                    .foregroundStyle(testResult.ok ? .green : .red)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
