@@ -1,0 +1,66 @@
+# Generate the Xcode project with XcodeGen:
+#   brew install xcodegen
+#   xcodegen generate
+#   open CircleToSearch.xcodeproj
+name: CircleToSearch
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "18.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1"
+    # DEVELOPMENT_TEAM: YOURTEAMID   # or pick your team in Xcode > Signing & Capabilities
+targets:
+  CircleToSearch:
+    type: application
+    platform: iOS
+    sources:
+      - App
+      - Shared
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Circle to Search
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.circletosearch
+    dependencies:
+      - target: AskAboutThis
+        embed: true
+
+  AskAboutThis:
+    type: app-extension
+    platform: iOS
+    sources:
+      - ShareExtension
+      - Shared
+    info:
+      path: ShareExtension/Info.plist
+      properties:
+        CFBundleDisplayName: Ask About This
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsImageWithMaxCount: 1
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.circletosearch.share
+
+schemes:
+  CircleToSearch:
+    build:
+      targets:
+        CircleToSearch: all
+        AskAboutThis: all
+    run:
+      config: Debug
+    archive:
+      config: Release
