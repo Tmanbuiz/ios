@@ -76,7 +76,9 @@ struct CircleToSearchApp: App {
 
 struct HomeView: View {
     @EnvironmentObject private var store: CaptureStore
+    @ObservedObject private var settings = AISettings.shared
     @State private var pickedItem: PhotosPickerItem?
+    @State private var showSettings = false
 
     var body: some View {
         NavigationStack {
@@ -100,15 +102,28 @@ struct HomeView: View {
                     Label("Or Settings > Action Button > Shortcut", systemImage: "3.circle")
                 }
 
+                Section("AI assistant") {
+                    Button { showSettings = true } label: {
+                        LabeledContent("Answers from", value: settings.provider.name)
+                    }
+                    .foregroundStyle(.primary)
+                }
+
                 Section {
                     PhotosPicker(selection: $pickedItem, matching: .images) {
                         Label("Try it on a screenshot", systemImage: "photo")
                     }
                 } footer: {
-                    Text(Config.aiEnabled ? "AI answers are on." : "AI answers are off until you add an API key in Config.swift. Everything else works without one.")
+                    Text(settings.isReady ? "AI answers are on." : "AI answers are off until you add an API key in Settings. Everything else works without one.")
                 }
             }
             .navigationTitle("Circle to Search")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                }
+            }
+            .sheet(isPresented: $showSettings) { SettingsView() }
         }
         .onChange(of: pickedItem) {
             guard let item = pickedItem else { return }

@@ -5,4 +5,4 @@ Google's Circle to Search experience for iPhone: freeze the screen, then circle,
 
 **Download:** every push to `main` builds an unsigned `.ipa` and publishes it to the [latest release](../../releases/tag/latest). Install it with [Sideloadly](https://sideloadly.io) or [AltStore](https://altstore.io), which sign it with your Apple ID.
 
-To turn on AI answers in the build, add a repository secret named `ANTHROPIC_API_KEY` (Settings > Secrets and variables > Actions).
+Pick Claude, ChatGPT, Gemini or Grok and paste its API key in the app's Settings. Optionally, a repository secret named `ANTHROPIC_API_KEY` bakes a Claude key into the build.

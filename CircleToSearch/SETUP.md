@@ -15,6 +15,7 @@
 | Translate the whole screen | "Translate" button overlays translated text on every line, on device |
 | Ask about the whole screen | "Ask about your screen" bar before you select anything |
 | Share an image into it | "Ask About This" in the share sheet of Photos, Safari, etc. |
+| Gemini answers | Pick Claude, ChatGPT, Gemini or Grok in Settings |
 
 ## Limits Apple imposes (no way around these)
 - iOS doesn't let apps draw over other apps, so the overlay works on a screenshot of your screen, not the live app. It looks identical, but the screen behind it doesn't move.
@@ -24,7 +25,6 @@
 1. On a Mac with Xcode 16+, install XcodeGen: `brew install xcodegen`
 2. In this folder run `xcodegen generate`, then open `CircleToSearch.xcodeproj`.
 3. Under Signing & Capabilities, pick your team for both targets (CircleToSearch and AskAboutThis). If the bundle ID is taken, change `com.example` in `project.yml` and regenerate.
-4. Optional: put your Anthropic API key in `Shared/Config.swift` for AI answers. Without it, everything else still works.
 5. Run it on your iPhone (iOS 18 or later).
 
 ## 2. Make the Shortcut
@@ -46,11 +46,20 @@ Name it "Circle to Search".
 - Drag the results sheet up for more, and type follow-up questions at the bottom.
 - Tap Translate at the top to translate everything on screen.
 
-## About the API key
-- The key only powers the AI Overview and follow-ups. Copy text, translation, QR codes, and Google search are free and on device.
-- Questions are charged per use on your Anthropic account, usually around a cent or less each.
-- Keep the key in the app only for your own phone. For the App Store, put it on a small server and point `Config.endpoint` at that server.
-- If answers fail with a web search error, an admin may have turned web search off in the Claude Console. Turn it on there or set `useWebSearch = false` in `Config.swift`.
+## Choosing the AI (Settings)
+Tap the gear on the home screen or in the overlay, then pick **Claude**, **ChatGPT**, **Gemini** or **Grok** and paste that service's API key. Each one keeps its own key and model name, so you can switch any time.
+
+| AI | Get a key | Default model | Web sources |
+|---|---|---|---|
+| Claude | console.anthropic.com | claude-opus-5-5 | Yes |
+| ChatGPT | platform.openai.com/api-keys | gpt-5 | No |
+| Gemini | aistudio.google.com/app/apikey (has a free tier) | gemini-2.5-flash | Yes, via Google Search |
+| Grok | console.x.ai | grok-4 | No |
+
+- If a provider says the model doesn't exist, type its current model name in Settings.
+- Keys only power the AI Overview and follow-ups. Copy text, translation, QR codes, and Google search are free and on device.
+- Each service bills per question on your own account, usually around a cent or less.
+- Keys are stored on the phone and sent only to the service you picked. For an App Store release, put the keys on your own server instead.
 
 ## Files
 - `App/`: the app, home screen, and Shortcuts action

@@ -27,6 +27,10 @@ targets:
         CFBundleDisplayName: Circle to Search
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+    entitlements:
+      path: App/CircleToSearch.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.example.circletosearch]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.circletosearch
@@ -50,6 +54,10 @@ targets:
           NSExtensionAttributes:
             NSExtensionActivationRule:
               NSExtensionActivationSupportsImageWithMaxCount: 1
+    entitlements:
+      path: ShareExtension/AskAboutThis.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.example.circletosearch]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.circletosearch.share

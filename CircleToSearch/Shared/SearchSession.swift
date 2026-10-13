@@ -28,7 +28,11 @@ final class SearchSession: ObservableObject {
     @Published var isStreaming = false
     @Published var errorText: String?
 
-    private var history: [[String: Any]] = []
+    private var history: [AIMessage] = []
+    private let settings = AISettings.shared
+
+    /// Which AI answered, shown in the results sheet.
+    @Published private(set) var answeredBy: AIProvider?
     private var streamTask: Task<Void, Never>?
     private var generation = 0
 
@@ -89,34 +93,36 @@ final class SearchSession: ObservableObject {
         turns = []
         errorText = nil
         showResults = true
-        if Config.aiEnabled { send(question) }
+        if settings.isReady { send(question) }
     }
 
     func send(_ question: String?) {
-        guard Config.aiEnabled, !isStreaming else { return }
+        guard settings.isReady, !isStreaming else { return }
         let q = (question ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
-        var content: [[String: Any]] = []
         if history.isEmpty {
-            content.append(Self.imageBlock(croppedImage, maxSide: 1568))
-            if Config.sendFullScreenContext, selection != nil {
-                content.append(Self.imageBlock(image, maxSide: 1024))
-            }
+            var images = [Self.jpeg(croppedImage, maxSide: 1568)]
+            if settings.sendFullScreen, selection != nil { images.append(Self.jpeg(image, maxSide: 1024)) }
             var prompt = q.isEmpty ? "What is this? Give me a quick overview." : q
             let text = selectedText
             if !text.isEmpty { prompt += "\n\nText detected in my selection:\n\(text)" }
-            content.append(["type": "text", "text": prompt])
+            history.append(AIMessage(isUser: true, text: prompt, images: images))
         } else {
             guard !q.isEmpty else { return }
-            content.append(["type": "text", "text": q])
+            history.append(AIMessage(isUser: true, text: q))
         }
 
         if !q.isEmpty { turns.append(ChatTurn(isUser: true, text: q)) }
-        history.append(["role": "user", "content": content])
         turns.append(ChatTurn(isUser: false, text: "", streaming: true))
         let index = turns.count - 1
         let gen = generation
         let messages = history
+        let provider = settings.provider
+        let options = AIClient.Options(provider: provider,
+                                       key: settings.key(for: provider),
+                                       model: settings.model(for: provider),
+                                       webSearch: settings.useWebSearch && provider.searchesWeb)
+        answeredBy = provider
         showResults = true
         isStreaming = true
         errorText = nil
@@ -126,7 +132,7 @@ final class SearchSession: ObservableObject {
             var failure: String?
             var refused = false
             do {
-                for try await event in ClaudeClient.stream(messages: messages) {
+                for try await event in AIClient.stream(messages, options: options) {
                     guard let self, self.generation == gen else { return }
                     switch event {
                     case .text(let t):
@@ -145,7 +151,7 @@ final class SearchSession: ObservableObject {
                 failure = error.localizedDescription
             }
             guard let self, self.generation == gen else { return }
-            if refused { failure = "Claude couldn't answer this one. Try selecting something else." }
+            if refused { failure = "\(provider.name) couldn't answer this one. Try selecting something else." }
             self.finish(index: index, answer: refused ? "" : answer, failure: failure)
         }
     }
@@ -159,7 +165,7 @@ final class SearchSession: ObservableObject {
             turns[i].streaming = false
             turns[i].searching = false
             let partial = turns[i].text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if partial.isEmpty { history.removeLast() } else { history.append(Self.assistantMessage(partial)) }
+            if partial.isEmpty { history.removeLast() } else { history.append(AIMessage(isUser: false, text: partial)) }
         }
     }
 
@@ -169,7 +175,7 @@ final class SearchSession: ObservableObject {
         turns[index].searching = false
         let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
         if failure == nil, !trimmed.isEmpty {
-            history.append(Self.assistantMessage(trimmed))
+            history.append(AIMessage(isUser: false, text: trimmed))
         } else {
             history.removeLast()   // drop the unanswered question so the conversation stays valid
             turns[index].text = trimmed
@@ -187,13 +193,7 @@ final class SearchSession: ObservableObject {
         return (title, lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    private static func assistantMessage(_ text: String) -> [String: Any] {
-        ["role": "assistant", "content": [["type": "text", "text": text]]]
-    }
-
-    private static func imageBlock(_ image: UIImage, maxSide: CGFloat) -> [String: Any] {
-        let data = image.downscaled(maxSide: maxSide).jpegData(compressionQuality: 0.85) ?? Data()
-        return ["type": "image",
-                "source": ["type": "base64", "media_type": "image/jpeg", "data": data.base64EncodedString()]]
+    private static func jpeg(_ image: UIImage, maxSide: CGFloat) -> Data {
+        image.downscaled(maxSide: maxSide).jpegData(compressionQuality: 0.85) ?? Data()
     }
 }

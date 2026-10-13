@@ -5,6 +5,8 @@ import Translation
 /// quick actions, an AI overview with sources, and a follow-up chat.
 struct ResultsSheet: View {
     @ObservedObject var session: SearchSession
+    @ObservedObject private var settings = AISettings.shared
+    @State private var showSettings = false
     @State private var followUp = ""
     @State private var browserURL: IdentifiedURL?
     @State private var showTranslate = false
@@ -19,10 +21,11 @@ struct ResultsSheet: View {
                     VStack(alignment: .leading, spacing: 18) {
                         header
                         actions
-                        if Config.aiEnabled {
+                        if settings.isReady || !session.turns.isEmpty {
                             ForEach(session.turns) { turn in
                                 TurnView(turn: turn,
                                          isOverview: turn.id == session.turns.first(where: { !$0.isUser })?.id,
+                                         providerName: session.answeredBy?.name ?? settings.provider.name,
                                          open: { browserURL = IdentifiedURL(url: $0) })
                                     .id(turn.id)
                             }
@@ -43,7 +46,7 @@ struct ResultsSheet: View {
                     }
                 }
             }
-            if Config.aiEnabled { inputBar }
+            if settings.isReady { inputBar }
         }
         .presentationDetents([Self.smallDetent, .large])
         .presentationBackgroundInteraction(.enabled(upThrough: Self.smallDetent))
@@ -51,6 +54,7 @@ struct ResultsSheet: View {
         .presentationDragIndicator(.visible)
         .translationPresentation(isPresented: $showTranslate, text: session.selectedText)
         .sheet(item: $browserURL) { WebSheet(url: $0.url) }
+        .sheet(isPresented: $showSettings) { SettingsView() }
     }
 
     private var header: some View {
@@ -107,10 +111,14 @@ struct ResultsSheet: View {
     }
 
     private var noKeyNote: some View {
-        Label("Add your Anthropic API key in Config.swift to get AI answers about your selection.",
-              systemImage: "sparkles")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Add an API key for \(settings.provider.name) to get AI answers about your selection.",
+                  systemImage: "sparkles")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Button("Open Settings") { showSettings = true }
+                .buttonStyle(.bordered)
+        }
     }
 
     private var inputBar: some View {
@@ -156,6 +164,7 @@ struct ResultsSheet: View {
 struct TurnView: View {
     let turn: ChatTurn
     let isOverview: Bool
+    let providerName: String
     let open: (URL) -> Void
 
     var body: some View {
@@ -169,7 +178,7 @@ struct TurnView: View {
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 if isOverview {
-                    Label("AI Overview", systemImage: "sparkles")
+                    Label("AI Overview · \(providerName)", systemImage: "sparkles")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }

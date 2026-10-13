@@ -4,6 +4,8 @@ import SwiftUI
 /// and you circle, highlight (scribble over text) or tap anything to search it.
 struct SearchOverlayView: View {
     @StateObject private var session: SearchSession
+    @ObservedObject private var settings = AISettings.shared
+    @State private var showSettings = false
     private let onClose: () -> Void
 
     @State private var stroke: [CGPoint] = []
@@ -35,6 +37,7 @@ struct SearchOverlayView: View {
         .sheet(isPresented: $session.showResults) {
             ResultsSheet(session: session)
         }
+        .fullScreenCover(isPresented: $showSettings) { SettingsView() }
         .task {
             withAnimation(.easeInOut(duration: 1.1)) { shimmerY = 1.4 }
             try? await Task.sleep(for: .seconds(1.1))
@@ -246,6 +249,12 @@ struct SearchOverlayView: View {
                     .background(.ultraThinMaterial, in: Circle())
             }
             Spacer()
+            Button { showSettings = true } label: {
+                Image(systemName: "gearshape")
+                    .font(.headline)
+                    .frame(width: 42, height: 42)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
             Button {
                 withAnimation { translateScreen.toggle() }
             } label: {
@@ -271,7 +280,7 @@ struct SearchOverlayView: View {
                     .padding(.vertical, 8)
                     .background(.ultraThinMaterial, in: Capsule())
             }
-            if Config.aiEnabled {
+            if settings.isReady {
                 HStack(spacing: 10) {
                     Image(systemName: "sparkle").foregroundStyle(Palette.google[0])
                     TextField("Ask about your screen", text: $question)
